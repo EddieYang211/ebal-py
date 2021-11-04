@@ -4,7 +4,7 @@ Python implementation of Entropy Balancing for binary and continuous treatment
 
 > Author: Eddie Yang
 
-ebal for binary treatment is based on Hainmueller ([2012](https://web.stanford.edu/~jhain/Paper/PA2012.pdf)) and ebal for continuous treatment is based on Tübbicke ([2020}(https://arxiv.org/abs/2001.06281)) and Vegetabile et al. ([2021](https://arxiv.org/pdf/2003.02938.pdf)).
+ebal for binary treatment is based on Hainmueller ([2012](https://web.stanford.edu/~jhain/Paper/PA2012.pdf)) and ebal for continuous treatment is based on Tübbicke ([2020](https://arxiv.org/abs/2001.06281)) and Vegetabile et al. ([2021](https://arxiv.org/pdf/2003.02938.pdf)).
 
 
 ## Examples
