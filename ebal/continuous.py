@@ -1,5 +1,5 @@
 import numpy as np
-import sys
+import pandas as pd
 from scipy.optimize import minimize_scalar
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.decomposition import PCA
@@ -7,41 +7,39 @@ from scipy.stats import pearsonr
 
 class ebal_con:
     """
-    Implementation of Entropy Balancing for continuous treatment
-    
-    Author: Eddie Yang, based on work of Hainmueller (2012) and Xu & Yang (2021)
-    
+    Implementation of Entropy Balancing for continuous treatment.
+
+    Author: Eddie Yang, based on work of Hainmueller (2012), Xu & Yang (2021), Tübbicke (2020) and Vegetabile et al. (2021)
+
     Params:
-    coefs: Lagrangian multipliers, refer to Hainmueller (2012)
-    max_iterations: maximum number of iterations to find the solution weights, default 500
-    constraint_tolerance: tolerance level for covariate difference between the treatment and control group, default 1e-4
-    print_level: level of details to print out
-    lr: step size, default 1. Increase to make the algorithm converge faster (at the risk of exploding gradient)
-    max_moment_treat: order of moment to be balanced for the treatment vector, default 2.
-    max_moment_X: order of moment to be balanced for the covariates, current only support 1.
+        coefs: Lagrangian multipliers, refer to Hainmueller (2012)
+        max_iterations: maximum number of iterations to find the solution weights, default 500
+        constraint_tolerance: tolerance level for covariate difference between the treatment
+            and control group, default 1e-4
+        print_level: level of details to print out, default 0. Set to -1 to suppress all output.
+        lr: step size, default 1. Increase to make the algorithm converge faster
+            (at the risk of exploding gradient)
+        PCA: whether to apply PCA to covariates for dimensionality reduction, default True
+        max_moment_treat: order of moment to be balanced for the treatment vector, default 2
+        max_moment_X: order of moment to be balanced for the covariates, currently only supports 1
 
     Output:
-    converged: boolean, whether the algorithm converged
-    maxdiff: maximum covariate difference between treatment and control groups
-    w: solution weights for the control units
-
-    Current version: 1.0.1
-    updates:
-    1. make lr adjustable
-    2. fix wrong initial coefs 
-    4. add more printed details
+        converged: boolean, whether the algorithm converged
+        maxdiff: maximum covariate difference between treatment and control groups
+        w: solution weights for the units
     """
 
-    def __init__(self, 
-        coefs = None, 
-        max_iterations = 500, 
-        constraint_tolerance = 0.0001, 
-        print_level=0, 
+    def __init__(self,
+        coefs = None,
+        max_iterations = 500,
+        constraint_tolerance = 0.0001,
+        print_level=0,
         lr=1,
         PCA=True,
         max_moment_treat=2,
         max_moment_X=1):
 
+        self._initial_coefs = coefs
         self.coefs = coefs
         self.max_iterations = max_iterations
         self.constraint_tolerance = constraint_tolerance
@@ -58,34 +56,36 @@ class ebal_con:
         X,
         base_weight=None):
 
+        self.coefs = self._initial_coefs
+
         Treatment = np.asarray(Treatment).reshape(-1, 1)
         X = np.asarray(X)
 
-
         if np.isnan(Treatment).any():
-           sys.exit("Treatment contains missing data")
+            raise ValueError("Treatment contains missing data")
 
         if np.var(Treatment) == 0:
-            sys.exit("Variance of treatment indicator = 0. Treatment indicator must not be a constant")
+            raise ValueError("Variance of treatment indicator = 0. Treatment indicator must not be a constant")
 
         if len(np.unique(Treatment)) == 2:
-            sys.exit("Treatment has 2 unique values. Consider using the binary version of entropy balancing")
+            raise ValueError("Treatment has 2 unique values. Consider using the binary version of entropy balancing")
 
         if np.isnan(X).any():
-            sys.exit("X contains missing data")
+            raise ValueError("X contains missing data")
 
         if not Treatment.shape[0] == X.shape[0]:
-            sys.exit("length(Treatment) != nrow(X)")
-        
+            raise ValueError("length(Treatment) != nrow(X)")
+
         if not isinstance(self.max_iterations, int):
-            sys.exit("length(max.iterations) != 1")
+            raise TypeError("max_iterations must be an integer")
 
         if self.PCA:
-            pca = PCA()
+            pca_model = PCA()
             X_c = X - X.mean(axis=0)
-            X_c_pca = pca.fit_transform(X_c)
-            X = X_c_pca[:,(pca.explained_variance_>=1) | (pca.explained_variance_ratio_>=0.001)]
-            print(f"PCA on X successful; With {X.shape[1]} dimensions\n" + "-"*35)
+            X_c_pca = pca_model.fit_transform(X_c)
+            X = X_c_pca[:,(pca_model.explained_variance_>=1) | (pca_model.explained_variance_ratio_>=0.001)]
+            if self.print_level >= 0:
+                print(f"PCA on X successful; With {X.shape[1]} dimensions\n" + "-"*35)
 
         # generate higher moments and standardization
         t_tmp = PolynomialFeatures(degree=self.max_moment_treat, include_bias=False).fit(Treatment)
@@ -98,12 +98,15 @@ class ebal_con:
         gTX_int = np.multiply(X_mean, t_mat[:,0].reshape(-1, 1))
         gTX = np.column_stack((t_mat, X_mean, gTX_int))
         gTX = np.column_stack((np.ones(X_mean.shape[0]).reshape(-1, 1), gTX))
-       
-        base_weight = np.ones(Treatment.shape[0])[..., np.newaxis]
+
+        if base_weight is None:
+            base_weight = np.ones(Treatment.shape[0])[..., np.newaxis]
+        else:
+            base_weight = np.asarray(base_weight).reshape(-1, 1)
 
         # set up elements
         if not np.linalg.matrix_rank(gTX) == gTX.shape[1]:
-            sys.exit("collinearity in covariate matrix for controls (remove collinear covariates)")
+            raise ValueError("collinearity in covariate matrix for controls (remove collinear covariates)")
 
         tr_total = gTX.sum(axis=0)
         tr_total[-gTX_int.shape[1]:] = 0
@@ -114,16 +117,16 @@ class ebal_con:
             self.coefs = np.zeros(gTX.shape[1]).reshape(-1, 1)
         else:
             self.coefs = np.asarray(self.coefs)
-           
+
         if not self.coefs.shape[0]==gTX.shape[1]:
-            sys.exit("coefs needs to have same length as number of covariates plus one")
+            raise ValueError("coefs needs to have same length as number of covariates plus one")
 
         if self.print_level >= 0:
             print(f"Set-up complete. Finding weights for {gTX.shape[0]} units,  with {gTX.shape[1]} constraints:\n" + "-"*35)
 
         weights = self._eb(tr_total, gTX, base_weight)
-        
-        return {'converged': self.converged, 'maxdiff': self.maxdiff, 'w':weights}
+
+        return {'converged': self.converged, 'maxdiff': self.maxdiff, 'w':weights.flatten()}
 
 
     def _eb(self, tr_total, co_x, base_weight):
@@ -133,11 +136,12 @@ class ebal_con:
             weights_ebal = np.multiply(weights_temp, base_weight).reshape(1, -1) #(n, 1)
             co_x_agg  = weights_ebal.reshape(1, -1).dot(co_x).reshape(-1, 1) #(p, )
             gradient  = co_x_agg - tr_total
-            
+
             self.maxdiff = max(np.absolute(gradient))
             if self.maxdiff < self.constraint_tolerance:
                 self.converged = True
-                print("algorithm has converged, final loss = " + str(self.maxdiff))
+                if self.print_level >= 0:
+                    print("algorithm has converged, final loss = " + str(self.maxdiff))
                 break
             hessian = co_x.T.dot((co_x * weights_ebal.reshape(-1, 1)))
             self.Coefs = self.coefs.copy()
@@ -154,7 +158,8 @@ class ebal_con:
                 self.coefs = self.Coefs - ss_min.x*newton
 
         if self.converged == False:
-            print("algorithm did not converged, final loss = " + str(self.maxdiff))
+            if self.print_level >= 0:
+                print("algorithm did not converge, final loss = " + str(self.maxdiff))
 
         return weights_ebal
 
@@ -168,7 +173,13 @@ class ebal_con:
 
 
     def check_balance(self, X, Treatment, weights):
-        weights = weights/np.sum(weights) # normalize weights
+        weights = weights.copy()
+        weights = weights/np.sum(weights)
+        Treatment = np.asarray(Treatment).flatten()
+
+        # Convert numpy array to DataFrame if needed
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X, columns=[f'X{i}' for i in range(np.asarray(X).shape[1])])
 
         types = np.array([self._check_binary(X[x]) for x in X])
         col_names = np.array(list(X.columns.values))
@@ -180,15 +191,18 @@ class ebal_con:
         col_names = col_names[to_keep]
         X = np.asarray(X)[:,to_keep]
 
-        before_corr = np.round(np.array([pearsonr(T, x)[0] for x in X.T]), 2)
-        after = [pearsonr(T, (weights * x).reshape(-1,)) for x in X.T]
+        before_corr = np.round(np.array([pearsonr(Treatment, x)[0] for x in X.T]), 2)
+        after = [pearsonr(Treatment, (weights * x).reshape(-1,)) for x in X.T]
         after_corr = np.round(np.array([a[0] for a in after]), 2)
         after_pvalue = np.round(np.array([a[1] for a in after]), 2)
 
-        out = {"Types": types, "Before_weighting_corr": before_corr, "After_weighting_corr": after_corr, "After_weighting_pvalue":after_pvalue}
-        print(pd.DataFrame(data=out, index=col_names).to_string())
-        if len(col_drop)>0:
-            print(f"\n*Note: Columns {col_drop} were dropped because their standard deviations are 0")
+        out = {"Types": types, "Before_weighting_corr": before_corr, "After_weighting_corr": after_corr, "After_weighting_pvalue": after_pvalue}
+        result_df = pd.DataFrame(data=out, index=col_names)
+        if self.print_level >= 0:
+            print(result_df.to_string())
+            if len(col_drop) > 0:
+                print(f"\n*Note: Columns {col_drop} were dropped because their standard deviations are 0")
+        return result_df
 
 
     def _check_binary(self, x):

@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ebal-py"
+version = "1.0.0"
+description = "Entropy Balancing for Causal Inference - Binary and Continuous Treatment"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Eddie Yang"}
+]
+keywords = [
+    "entropy balancing",
+    "causal inference",
+    "propensity score",
+    "treatment effect",
+    "ATT",
+    "ATE",
+    "ATC",
+    "observational studies"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "numpy>=1.20.0",
+    "scipy>=1.6.0",
+    "scikit-learn>=0.24.0",
+    "statsmodels>=0.12.0",
+    "pandas>=1.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/EddieYang211/ebal-py"
+Repository = "https://github.com/EddieYang211/ebal-py.git"
+Issues = "https://github.com/EddieYang211/ebal-py/issues"
+
+[tool.setuptools.packages.find]
+include = ["ebal*"]
+exclude = ["tests*", "docs*"]
