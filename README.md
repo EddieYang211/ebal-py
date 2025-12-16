@@ -68,7 +68,7 @@ e.check_balance(X, T, out['w'])
 
 ## Documentation
 
-For detailed documentation in Chinese:
+For more detailed documentation:
 - [Binary Treatment Documentation](docs/README_binary.md)
 - [Continuous Treatment Documentation](docs/README_continuous.md)
 
