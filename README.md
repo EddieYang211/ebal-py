@@ -10,14 +10,14 @@ ebal for binary treatment is based on Hainmueller ([2012](https://web.stanford.e
 
 ```bash
 # From PyPI
-pip install ebal-py
+pip install ebal
 
 # From GitHub
 pip install git+https://github.com/EddieYang211/ebal-py.git
 
 # For development
 git clone https://github.com/EddieYang211/ebal-py.git
-cd ebal-py
+cd ebal
 pip install -e .
 ```
 
